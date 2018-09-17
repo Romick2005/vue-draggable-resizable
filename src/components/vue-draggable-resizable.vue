@@ -247,7 +247,7 @@ export default {
       }
       me.elmW = me.width;
       me.elmH = me.height;
-      me.$emit("resizing", me.left, me.top, me.width, me.height);
+      me.fireEvent("resizing");
     },
 
     elmDown(e) {
@@ -265,7 +265,7 @@ export default {
         me.reviewDimensions();
         if (!me.enabled) {
           me.enabled = true;
-          me.$emit("activated");
+          me.fireEvent("activated");
           me.$emit("update:active", true);
         }
         if (me.draggable) {
@@ -277,9 +277,9 @@ export default {
     deselect(e) {
       const me = this;
       if (e.type.indexOf("touch") !== -1) {
-        const touches = e.changedTouches[0];
-        me.mouseX = touches.clientX;
-        me.mouseY = touches.clientY;
+        const changedTouches = e.changedTouches[0];
+        me.mouseX = changedTouches.clientX;
+        me.mouseY = changedTouches.clientY;
       } else {
         const documentElement = document.documentElement;
         me.mouseX = e.pageX || e.clientX + documentElement.scrollLeft;
@@ -292,7 +292,7 @@ export default {
       if (!me.$el.contains(target) && !regex.test(target.className)) {
         if (me.enabled) {
           me.enabled = false;
-          me.$emit("deactivated");
+          me.fireEvent("deactivated");
           me.$emit("update:active", false);
         }
       }
@@ -359,7 +359,7 @@ export default {
             me.elmY--;
           }
         }
-        me.$emit("resizing", me.left, me.top, me.width, me.height);
+        me.fireEvent("resizing", me.left, me.top, me.width, me.height);
       }
       window.requestAnimationFrame(animate);
     },
@@ -367,15 +367,14 @@ export default {
     handleMove(e) {
       const me = this;
       const documentElement = document.documentElement;
-      const isTouchMove = e.type.indexOf("touchmove") !== -1;
-      const touches = e.touches[0];
-      me.mouseX = isTouchMove
-        ? touches.clientX
-        : e.pageX || e.clientX + documentElement.scrollLeft;
-      me.mouseY = isTouchMove
-        ? touches.clientY
-        : e.pageY || e.clientY + documentElement.scrollTop;
-
+      if (e.type.indexOf("touchmove") !== -1) {
+        const touches = e.touches[0];
+        me.mouseX = touches.clientX;
+        me.mouseY = touches.clientY;
+      } else {
+        me.mouseX = e.pageX || e.clientX + documentElement.scrollLeft;
+        me.mouseY = e.pageY || e.clientY + documentElement.scrollTop;
+      }
       let diffX = me.mouseX - me.lastMouseX + me.mouseOffX;
       let diffY = me.mouseY - me.lastMouseY + me.mouseOffY;
       me.mouseOffX = me.mouseOffY = 0;
@@ -422,7 +421,7 @@ export default {
         me.top = (Math.round(me.elmY / me.grid[1]) * me.grid[1]);
         me.width = (Math.round(me.elmW / me.grid[0]) * me.grid[0]);
         me.height = (Math.round(me.elmH / me.grid[1]) * me.grid[1]);
-        me.$emit("resizing", me.left, me.top, me.width, me.height);
+        me.fireEvent("resizing");
       } else if (me.dragging) {
         if (me.parent) {
           if (me.elmX + dX < me.parentX) {
@@ -444,7 +443,7 @@ export default {
         if (me.axis === "y" || me.axis === "both") {
           me.top = (Math.round(me.elmY / me.grid[1]) * me.grid[1]);
         }
-        me.$emit("dragging", me.left, me.top);
+        me.fireEvent("dragging");
       }
     },
 
@@ -457,14 +456,24 @@ export default {
       me.handle = null;
       if (me.resizing) {
         me.resizing = false;
-        me.$emit("resizestop", me.left, me.top, me.width, me.height);
+        me.fireEvent("resizestop");
       }
       if (me.dragging) {
         me.dragging = false;
-        me.$emit("dragstop", me.left, me.top);
+        me.fireEvent("dragstop");
       }
       me.elmX = me.left;
       me.elmY = me.top;
+    },
+
+    fireEvent(eventName, eventProperties) {
+      const me = this;
+      me.$emit(eventName, {
+        x: me.left,
+        y: me.top,
+        width: me.width,
+        height: me.height
+      });
     }
   },
 

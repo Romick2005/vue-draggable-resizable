@@ -75,15 +75,15 @@ export default {
     }
   },
   methods: {
-    onResize: function (x, y, width, height) {
-      this.x = x
-      this.y = y
-      this.width = width
-      this.height = height
+    onResize: function ($event) {
+      this.x = $event.x;
+      this.y = $event.y;
+      this.width = $event.width;
+      this.height = $event.height;
     },
-    onDrag: function (x, y) {
-      this.x = x
-      this.y = y
+    onDrag: function ($event) {
+      this.x = $event.x;
+      this.y = $event.y;
     }
   }
 }
