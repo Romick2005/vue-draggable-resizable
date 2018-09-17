@@ -1,4 +1,6 @@
-import { isFunction } from './fns'
+export function isFunction (func) {
+  return typeof func === 'function' || Object.prototype.toString.call(func) === '[object Function]'
+}
 
 export function matchesSelectorToParentElements (el, selector, baseNode) {
   let node = el
