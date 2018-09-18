@@ -9,13 +9,13 @@
 </template>
 
 <script>
-import VueDraggableResizable from './components/vue-draggable-resizable'
-import './components/vue-draggable-resizable.css'
+import vueDraggableResizable from "./components/vue-draggable-resizable.vue";
+import "./components/vue-draggable-resizable.css";
 
 export default {
-  name: 'app',
+  name: "app",
   components: {
-    VueDraggableResizable
+    "vue-draggable-resizable" : vueDraggableResizable
   }
 }
 </script>
