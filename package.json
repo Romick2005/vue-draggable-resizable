@@ -1,6 +1,6 @@
 {
   "name": "vue-draggable-resizable",
-  "version": "2.0.0-beta.0",
+  "version": "2.0.1",
   "author": "Maurizio Bonani <maurizio.bonani@gmail.com>",
   "main": "dist/index.js",
   "jsnext:main": "src/index.js",
