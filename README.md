@@ -469,7 +469,7 @@ Parameters:
 Called whenever the component stops getting resized.
 
 ```html
-<vue-draggable-resizable @resizestop="onResizstop">
+<vue-draggable-resizable @resizeStop="onResizeStop">
 ```
 
 #### dragging

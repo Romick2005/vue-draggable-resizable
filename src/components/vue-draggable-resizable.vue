@@ -107,13 +107,13 @@ export default {
     w: {
       type: Number,
       default: 200,
-      validator: (val) => val > 0
+      validator: (val) => val >= 0
     },
 
     h: {
       type: Number,
       default: 200,
-      validator: (val) => val > 0
+      validator: (val) => val >= 0
     },
 
     minWidth: {
@@ -248,6 +248,164 @@ export default {
   },
 
   methods: {
+    elementTouchDown(e) {
+      const me = this;
+      eventsFor = events.touch;
+      me.elementDown(e);
+    },
+
+    elementDown(e) {
+      const me = this;
+      const target = e.target || e.srcElement;
+      const el = me.$el;
+      if (el.contains(target)) {
+        if (
+          (me.dragHandle && !matchesSelectorToParentElements(target, me.dragHandle, el)) ||
+          (me.dragCancel && matchesSelectorToParentElements(target, me.dragCancel, el))
+        ) {
+          return false;
+        }
+
+        if (!me.enabled) {
+          me.enabled = true;
+
+          me.$emit("activated");
+          me.$emit("update:active", true);
+        }
+
+        if (me.draggable) {
+          me.dragging = true;
+        }
+
+        me.prepareStartingPoint(e);
+        const documentElement = document.documentElement;
+        addEvent(documentElement, eventsFor.move, me.move);
+        addEvent(documentElement, eventsFor.stop, me.handleUp);
+      }
+    },
+
+    handleTouchDown(handle, e) {
+      const me = this;
+      eventsFor = events.touch;
+      me.handleDown(handle, e);
+    },
+
+    handleDown(handle, e) {
+      if (e.stopPropagation) {
+        e.stopPropagation();
+      }
+      const me = this;
+      // Here we avoid a dangerous recursion by faking
+      // corner handles as middle handles
+      if (me.lockAspectRatio && !handle.includes("m")) {
+        me.handle = "m" + handle.substring(1);
+      } else {
+        me.handle = handle;
+      }
+
+      me.resizing = true;
+
+      me.prepareStartingPoint(e);
+      addEvent(document.documentElement, eventsFor.move, me.handleMove);
+    },
+
+    move(e) {
+      const me = this;
+      if (me.resizing) {
+        me.handleMove(e);
+      } else if (me.dragging) {
+        me.elementMove(e);
+      }
+    },
+
+    elementMove(e) {
+      const me = this;
+      const axis = me.axis;
+      const grid = me.grid;
+      const mouseClickPosition = me.mouseClickPosition;
+
+      const tmpDeltaX = axis && axis !== "y" ? mouseClickPosition.mouseX - (e.touches ? e.touches[0].pageX : e.pageX) : 0
+      const tmpDeltaY = axis && axis !== "x" ? mouseClickPosition.mouseY - (e.touches ? e.touches[0].pageY : e.pageY) : 0
+
+      const [deltaX, deltaY] = me.snapToGrid(me.grid, tmpDeltaX, tmpDeltaY)
+
+      if (!deltaX && !deltaY) {
+        return false;
+      }
+
+      me.rawTop = mouseClickPosition.top - deltaY;
+      me.rawBottom = mouseClickPosition.bottom + deltaY;
+      me.rawLeft = mouseClickPosition.left - deltaX;
+      me.rawRight = mouseClickPosition.right + deltaX;
+
+      if (me.firstMove) {
+        me.fireEvent("dragStart");
+        me.firstMove = false;
+      }
+      me.fireEvent("dragging");
+    },
+
+    handleMove(e) {
+      const me = this;
+      const handle = me.handle;
+      const mouseClickPosition = me.mouseClickPosition;
+
+      const tmpDeltaX = mouseClickPosition.mouseX - (e.touches ? e.touches[0].pageX : e.pageX);
+      const tmpDeltaY = mouseClickPosition.mouseY - (e.touches ? e.touches[0].pageY : e.pageY);
+
+      const [deltaX, deltaY] = me.snapToGrid(me.grid, tmpDeltaX, tmpDeltaY);
+
+      if (!deltaX && !deltaY) {
+        return false;
+      }
+
+      if (handle.includes("b")) {
+        me.rawBottom = mouseClickPosition.bottom + deltaY;
+      } else if (handle.includes("t")) {
+        me.rawTop = mouseClickPosition.top - deltaY;
+      }
+
+      if (handle.includes("r")) {
+        me.rawRight = mouseClickPosition.right + deltaX;
+      } else if (handle.includes("l")) {
+        me.rawLeft = mouseClickPosition.left - deltaX;
+      }
+
+      if (me.firstMove) {
+        me.fireEvent("resizeStart");
+        me.firstMove = false;
+      }
+      me.fireEvent("resizing");
+    },
+
+    handleUp(e) {
+      const me = this;
+      me.handle = null;
+
+      me.rawTop = me.top;
+      me.rawBottom = me.bottom;
+      me.rawLeft = me.left;
+      me.rawRight = me.right;
+
+      if (me.resizing) {
+        me.resizing = false;
+        if (me.firstMove === false) {
+          me.fireEvent("resizeEnd");
+        }
+      }
+      if (me.dragging) {
+        me.dragging = false;
+        const mouseClickPosition = me.mouseClickPosition;
+
+        if (me.firstMove === false) {
+          me.fireEvent("dragEnd");
+        }
+      }
+      me.fireEvent("mouseClickUp");
+      me.resetBoundsAndMouseState();
+      removeEvent(document.documentElement, eventsFor.move, me.handleMove);
+    },
+
     resetBoundsAndMouseState() {
       const me = this;
       me.mouseClickPosition = {
@@ -268,7 +426,13 @@ export default {
         maxTop: null,
         minBottom: null,
         maxBottom: null
-      }
+      };
+
+      me.firstMove = null;
+      //Possible values
+      //null - initial,
+      //true - before any position changes, but with attached move listeners,
+      //false - after mouse position changes
     },
 
     checkParentSize() {
@@ -309,118 +473,42 @@ export default {
       return [null, null];
     },
 
-    elementTouchDown(e) {
-      const me = this;
-      eventsFor = events.touch;
-      me.elementDown(e);
-    },
-
-    elementDown(e) {
-      const me = this;
-      const target = e.target || e.srcElement;
-      const el = me.$el;
-      if (el.contains(target)) {
-        if (
-          (me.dragHandle && !matchesSelectorToParentElements(target, me.dragHandle, el)) ||
-          (me.dragCancel && matchesSelectorToParentElements(target, me.dragCancel, el))
-        ) {
-          return false;
-        }
-
-        if (!me.enabled) {
-          me.enabled = true;
-
-          me.$emit("activated");
-          me.$emit("update:active", true);
-        }
-
-        if (this.draggable) {
-          me.dragging = true;
-        }
-
-        const mouseClickPosition = me.mouseClickPosition;
-        const touches = e.touches;
-        mouseClickPosition.mouseX = touches ? touches[0].pageX : e.pageX;
-        mouseClickPosition.mouseY = touches ? touches[0].pageY : e.pageY;
-        mouseClickPosition.left = me.left;
-        mouseClickPosition.right = me.right;
-        mouseClickPosition.top = me.top;
-        mouseClickPosition.bottom = me.bottom;
-
-        if (me.parent) {
-          me.bounds = me.calcDragLimits();
-        }
-
-        const documentElement = document.documentElement;
-        addEvent(documentElement, eventsFor.move, this.move);
-        addEvent(documentElement, eventsFor.stop, this.handleUp);
-      }
-    },
-
-    calcDragLimits() {
-      const me = this;
-      return {
-        minLeft: (me.parentWidth + me.left) % me.grid[0],
-        maxLeft: Math.floor((me.parentWidth - me.width - me.left) / me.grid[0]) * me.grid[0] + me.left,
-        minRight: (me.parentWidth + me.right) % me.grid[0],
-        maxRight: Math.floor((me.parentWidth - me.width - me.right) / me.grid[0]) * me.grid[0] + me.right,
-        minTop: (me.parentHeight + me.top) % me.grid[1],
-        maxTop: Math.floor((me.parentHeight - me.height - me.top) / me.grid[1]) * me.grid[1] + me.top,
-        minBottom: (me.parentHeight + me.bottom) % me.grid[1],
-        maxBottom: Math.floor((me.parentHeight - me.height - me.bottom) / me.grid[1]) * me.grid[1] + me.bottom
-      }
-    },
-
     deselect(e) {
       const me = this;
       const target = e.target || e.srcElement;
       const regex = new RegExp("vdr" + "-([trmbl]{2})", "");
 
       if (!me.$el.contains(target) && !regex.test(target.className)) {
-        if (me.enabled && !this.preventDeactivation) {
+        if (me.enabled && !me.preventDeactivation) {
           me.enabled = false;
           me.$emit("deactivated");
           me.$emit("update:active", false);
         }
-
-        removeEvent(document.documentElement, eventsFor.move, me.handleMove);
       }
 
       me.resetBoundsAndMouseState();
+      removeEvent(document.documentElement, eventsFor.move, me.handleMove);
     },
 
-    handleTouchDown(handle, e) {
+    prepareStartingPoint(e) {
       const me = this;
-      eventsFor = events.touch;
-      me.handleDown(handle, e);
-    },
-
-    handleDown(handle, e) {
-      if (e.stopPropagation) {
-        e.stopPropagation();
-      }
-      const me = this;
-      // Here we avoid a dangerous recursion by faking
-      // corner handles as middle handles
-      if (me.lockAspectRatio && !handle.includes("m")) {
-        me.handle = "m" + handle.substring(1);
-      } else {
-        me.handle = handle;
-      }
-
-      me.resizing = true;
-
       const mouseClickPosition = me.mouseClickPosition;
-      mouseClickPosition.mouseX = e.touches ? e.touches[0].pageX : e.pageX;
-      mouseClickPosition.mouseY = e.touches ? e.touches[0].pageY : e.pageY;
+      const touches = e.touches;
+      mouseClickPosition.mouseX = touches ? touches[0].pageX : e.pageX;
+      mouseClickPosition.mouseY = touches ? touches[0].pageY : e.pageY;
       mouseClickPosition.left = me.left;
       mouseClickPosition.right = me.right;
       mouseClickPosition.top = me.top;
       mouseClickPosition.bottom = me.bottom;
 
-      me.bounds = me.calcResizeLimits();
+      if (me.resizing) {
+        me.bounds = me.calcResizeLimits();
+      } else if (me.dragging && me.parent) {
+        me.bounds = me.calcDragLimits();
+      }
 
-      addEvent(document.documentElement, eventsFor.move, me.handleMove);
+      me.firstMove = true;
+      me.fireEvent("mouseClickDown");
     },
 
     calcResizeLimits() {
@@ -473,92 +561,18 @@ export default {
       return limits;
     },
 
-    move(e) {
+    calcDragLimits() {
       const me = this;
-
-      if (me.resizing) {
-        me.handleMove(e);
-      } else if (me.dragging) {
-        me.elementMove(e);
+      return {
+        minLeft: (me.parentWidth + me.left) % me.grid[0],
+        maxLeft: Math.floor((me.parentWidth - me.width - me.left) / me.grid[0]) * me.grid[0] + me.left,
+        minRight: (me.parentWidth + me.right) % me.grid[0],
+        maxRight: Math.floor((me.parentWidth - me.width - me.right) / me.grid[0]) * me.grid[0] + me.right,
+        minTop: (me.parentHeight + me.top) % me.grid[1],
+        maxTop: Math.floor((me.parentHeight - me.height - me.top) / me.grid[1]) * me.grid[1] + me.top,
+        minBottom: (me.parentHeight + me.bottom) % me.grid[1],
+        maxBottom: Math.floor((me.parentHeight - me.height - me.bottom) / me.grid[1]) * me.grid[1] + me.bottom
       }
-    },
-
-    elementMove(e) {
-      const me = this;
-      const axis = me.axis;
-      const grid = me.grid;
-      const mouseClickPosition = me.mouseClickPosition;
-
-      const tmpDeltaX = axis && axis !== "y" ? mouseClickPosition.mouseX - (e.touches ? e.touches[0].pageX : e.pageX) : 0
-      const tmpDeltaY = axis && axis !== "x" ? mouseClickPosition.mouseY - (e.touches ? e.touches[0].pageY : e.pageY) : 0
-
-      const [deltaX, deltaY] = me.snapToGrid(me.grid, tmpDeltaX, tmpDeltaY)
-
-      if (!deltaX && !deltaY) {
-        return false;
-      }
-
-      me.rawTop = mouseClickPosition.top - deltaY;
-      me.rawBottom = mouseClickPosition.bottom + deltaY;
-      me.rawLeft = mouseClickPosition.left - deltaX;
-      me.rawRight = mouseClickPosition.right + deltaX;
-
-      me.fireEvent("dragging");
-    },
-
-    handleMove(e) {
-      const me = this;
-      const handle = me.handle;
-      const mouseClickPosition = me.mouseClickPosition;
-
-      const tmpDeltaX = mouseClickPosition.mouseX - (e.touches ? e.touches[0].pageX : e.pageX);
-      const tmpDeltaY = mouseClickPosition.mouseY - (e.touches ? e.touches[0].pageY : e.pageY);
-
-      const [deltaX, deltaY] = me.snapToGrid(me.grid, tmpDeltaX, tmpDeltaY);
-
-      if (!deltaX && !deltaY) {
-        return false;
-      }
-
-      if (handle.includes("b")) {
-        me.rawBottom = mouseClickPosition.bottom + deltaY;
-      } else if (handle.includes("t")) {
-        me.rawTop = mouseClickPosition.top - deltaY;
-      }
-
-      if (handle.includes("r")) {
-        me.rawRight = mouseClickPosition.right + deltaX;
-      } else if (handle.includes("l")) {
-        me.rawLeft = mouseClickPosition.left - deltaX;
-      }
-
-      me.fireEvent("resizing");
-    },
-
-    handleUp(e) {
-      const me = this;
-      me.handle = null;
-
-      me.rawTop = me.top;
-      me.rawBottom = me.bottom;
-      me.rawLeft = me.left;
-      me.rawRight = me.right;
-
-      if (me.resizing) {
-        me.resizing = false;
-        me.fireEvent("resizestop");
-      }
-      if (me.dragging) {
-        me.dragging = false;
-        const mouseClickPosition = me.mouseClickPosition;
-
-        // Check if there was any dragging changes
-        if (mouseClickPosition.left !== me.left || mouseClickPosition.top !== me.top) {
-          me.fireEvent("dragstop");
-        }
-      }
-      me.resetBoundsAndMouseState();
-      removeEvent(document.documentElement, eventsFor.move, me.handleMove);
     },
 
     snapToGrid(grid, pendingX, pendingY) {
@@ -569,7 +583,7 @@ export default {
 
     fireEvent(eventName, eventProperties) {
       const me = this;
-      //eventName in ["resizestop", "dragstop", "dragging", "resizing"]
+      //eventName in ["resizeStart", "resizing", "resizeEnd", "dragStart", dragging", "dragEnd"]
       me.$emit(eventName, {
         x: me.left,
         y: me.top,
