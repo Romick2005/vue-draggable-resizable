@@ -184,20 +184,24 @@ export default {
 
   data() {
     const me = this;
+    const y = me.y;
+    const x = me.x;
+    const w = me.w;
+    const h = me.h;
     return {
-      rawWidth: me.w,
-      rawHeight: me.h,
-      rawLeft: me.x,
-      rawTop: me.y,
+      rawWidth: w,
+      rawHeight: h,
+      rawLeft: x,
+      rawTop: y,
       rawRight: null,
       rawBottom: null,
 
-      left: me.x,
-      top: me.y,
+      left: x,
+      top: y,
       right: null,
       bottom: null,
 
-      aspectFactor: me.w / me.h,
+      aspectFactor: w / h,
 
       parentWidth: null,
       parentHeight: null,
@@ -230,20 +234,21 @@ export default {
     me.rawBottom = me.parentHeight - me.rawHeight - me.rawTop;
 
     const documentElement = document.documentElement;
-    addEvent(documentElement, "mousedown", me.deselect);
-    addEvent(documentElement, "touchend touchcancel", me.deselect);
+    addEvent(documentElement, "mousedown", me.deselect);//events.mouse.start
+    addEvent(documentElement, "touchend touchcancel", me.deselect);//events.touch.stop
     addEvent(window, "resize", me.checkParentSize);
   },
 
   beforeDestroy() {
     const me = this;
     const documentElement = document.documentElement;
-    removeEvent(documentElement, "mousedown", me.deselect);
-    removeEvent(documentElement, "touchstart", me.handleUp);
-    removeEvent(documentElement, "mousemove", me.move);
-    removeEvent(documentElement, "touchmove", me.move);
-    removeEvent(documentElement, "mouseup", me.handleUp);
-    removeEvent(documentElement, "touchend touchcancel", me.deselect);
+    removeEvent(documentElement, "mouseup", me.handleUp);//events.mouse.stop
+    removeEvent(documentElement, "touchstart", me.handleUp);//events.touch.start
+    removeEvent(documentElement, "mousemove", me.move);//events.mouse.move
+    removeEvent(documentElement, "touchmove", me.move);//events.touch.move
+
+    removeEvent(documentElement, "mousedown", me.deselect);//events.mouse.start
+    removeEvent(documentElement, "touchend touchcancel", me.deselect);//events.touch.stop
     removeEvent(window, "resize", me.checkParentSize);
   },
 
@@ -278,9 +283,6 @@ export default {
         }
 
         me.prepareStartingPoint(e);
-        const documentElement = document.documentElement;
-        addEvent(documentElement, eventsFor.move, me.move);
-        addEvent(documentElement, eventsFor.stop, me.handleUp);
       }
     },
 
@@ -295,6 +297,7 @@ export default {
         e.stopPropagation();
       }
       const me = this;
+
       // Here we avoid a dangerous recursion by faking
       // corner handles as middle handles
       if (me.lockAspectRatio && !handle.includes("m")) {
@@ -306,7 +309,6 @@ export default {
       me.resizing = true;
 
       me.prepareStartingPoint(e);
-      addEvent(document.documentElement, eventsFor.move, me.handleMove);
     },
 
     move(e) {
@@ -395,28 +397,30 @@ export default {
       }
       if (me.dragging) {
         me.dragging = false;
-        const mouseClickPosition = me.mouseClickPosition;
-
         if (me.firstMove === false) {
           me.fireEvent("dragEnd");
         }
       }
-      me.fireEvent("mouseClickUp");
       me.resetBoundsAndMouseState();
-      removeEvent(document.documentElement, eventsFor.move, me.handleMove);
+      me.fireEvent("mouseClickUp");
     },
 
     resetBoundsAndMouseState() {
       const me = this;
-      me.mouseClickPosition = {
+
+      // No need to reinitialize this as it is populated only on click and used only during move
+      //me.mouseClickPosition = null;
+      /*me.mouseClickPosition = {
         mouseX: 0,
         mouseY: 0,
         left: 0,
         top: 0,
-        w: 0,
-        h: 0
-      };
+        right: 0,
+        bottom: 0
+      };*/
 
+      // Also populated on first click and cam ne used in calculated properties
+      //me.bounds = null;
       me.bounds = {
         minLeft: null,
         maxLeft: null,
@@ -428,11 +432,15 @@ export default {
         maxBottom: null
       };
 
-      me.firstMove = null;
+      //me.firstMove = null;//also not necessary
       //Possible values
       //null - initial,
       //true - before any position changes, but with attached move listeners,
       //false - after mouse position changes
+
+      const documentElement = document.documentElement;
+      removeEvent(documentElement, eventsFor.move, me.handleMove);
+      removeEvent(documentElement, eventsFor.stop, me.handleUp);
     },
 
     checkParentSize() {
@@ -487,19 +495,19 @@ export default {
       }
 
       me.resetBoundsAndMouseState();
-      removeEvent(document.documentElement, eventsFor.move, me.handleMove);
     },
 
     prepareStartingPoint(e) {
       const me = this;
-      const mouseClickPosition = me.mouseClickPosition;
       const touches = e.touches;
-      mouseClickPosition.mouseX = touches ? touches[0].pageX : e.pageX;
-      mouseClickPosition.mouseY = touches ? touches[0].pageY : e.pageY;
-      mouseClickPosition.left = me.left;
-      mouseClickPosition.right = me.right;
-      mouseClickPosition.top = me.top;
-      mouseClickPosition.bottom = me.bottom;
+      me.mouseClickPosition = {
+        mouseX: touches ? touches[0].pageX : e.pageX,
+        mouseY: touches ? touches[0].pageY : e.pageY,
+        left: me.left,
+        right: me.right,
+        top: me.top,
+        bottom: me.bottom
+      }
 
       if (me.resizing) {
         me.bounds = me.calcResizeLimits();
@@ -508,6 +516,9 @@ export default {
       }
 
       me.firstMove = true;
+      const documentElement = document.documentElement;
+      addEvent(documentElement, eventsFor.move, me.move);
+      addEvent(documentElement, eventsFor.stop, me.handleUp);
       me.fireEvent("mouseClickDown");
     },
 
@@ -563,15 +574,16 @@ export default {
 
     calcDragLimits() {
       const me = this;
+      const [gridX, gridY] = me.grid;
       return {
-        minLeft: (me.parentWidth + me.left) % me.grid[0],
-        maxLeft: Math.floor((me.parentWidth - me.width - me.left) / me.grid[0]) * me.grid[0] + me.left,
-        minRight: (me.parentWidth + me.right) % me.grid[0],
-        maxRight: Math.floor((me.parentWidth - me.width - me.right) / me.grid[0]) * me.grid[0] + me.right,
-        minTop: (me.parentHeight + me.top) % me.grid[1],
-        maxTop: Math.floor((me.parentHeight - me.height - me.top) / me.grid[1]) * me.grid[1] + me.top,
-        minBottom: (me.parentHeight + me.bottom) % me.grid[1],
-        maxBottom: Math.floor((me.parentHeight - me.height - me.bottom) / me.grid[1]) * me.grid[1] + me.bottom
+        minLeft: (me.parentWidth + me.left) % gridX,
+        maxLeft: Math.floor((me.parentWidth - me.width - me.left) / gridX) * gridX + me.left,
+        minRight: (me.parentWidth + me.right) % gridX,
+        maxRight: Math.floor((me.parentWidth - me.width - me.right) / gridX) * gridX + me.right,
+        minTop: (me.parentHeight + me.top) % gridY,
+        maxTop: Math.floor((me.parentHeight - me.height - me.top) / gridY) * gridY + me.top,
+        minBottom: (me.parentHeight + me.bottom) % gridY,
+        maxBottom: Math.floor((me.parentHeight - me.height - me.bottom) / gridY) * gridY + me.bottom
       }
     },
 
@@ -663,19 +675,22 @@ export default {
     rawLeft(newLeft) {
       const me = this;
       const bounds = me.bounds;
-      const aspectFactor = me.aspectFactor;
-      const lockAspectRatio = me.lockAspectRatio;
-      const left = me.left;
-      const top = me.top;
 
+      /*if (bounds !== null) {
+        if (newLeft < bounds.minLeft) {
+          newLeft = bounds.minLeft;
+        } else if (newLeft > bounds.maxLeft) {
+          newLeft = bounds.maxLeft;
+        }
+      }*/
       if (bounds.minLeft !== null && newLeft < bounds.minLeft) {
         newLeft = bounds.minLeft;
       } else if (bounds.maxLeft !== null && bounds.maxLeft < newLeft) {
         newLeft = bounds.maxLeft;
       }
 
-      if (lockAspectRatio && me.resizingOnX) {
-        me.rawTop = top - (left - newLeft) / aspectFactor;
+      if (me.lockAspectRatio && me.resizingOnX) {
+        me.rawTop = me.top - (me.left - newLeft) / me.aspectFactor;
       }
 
       me.left = newLeft;
@@ -684,19 +699,22 @@ export default {
     rawRight(newRight) {
       const me = this;
       const bounds = me.bounds;
-      const aspectFactor = me.aspectFactor;
-      const lockAspectRatio = me.lockAspectRatio;
-      const right = me.right;
-      const bottom = me.bottom;
 
+      /*if (bounds !== null) {
+        if (newRight < bounds.minRight) {
+          newRight = bounds.minRight;
+        } else if (newRight > bounds.maxRight) {
+          newRight = bounds.maxRight;
+        }
+      }*/
       if (bounds.minRight !== null && newRight < bounds.minRight) {
         newRight = bounds.minRight;
       } else if (bounds.maxRight !== null && bounds.maxRight < newRight) {
         newRight = bounds.maxRight;
       }
 
-      if (lockAspectRatio && me.resizingOnX) {
-        me.rawBottom = bottom - (right - newRight) / aspectFactor;
+      if (me.lockAspectRatio && me.resizingOnX) {
+        me.rawBottom = me.bottom - (me.right - newRight) / me.aspectFactor;
       }
 
       me.right = newRight;
@@ -705,19 +723,22 @@ export default {
     rawTop(newTop) {
       const me = this;
       const bounds = me.bounds;
-      const aspectFactor = me.aspectFactor;
-      const lockAspectRatio = me.lockAspectRatio;
-      const left = me.left;
-      const top = me.top;
 
+      /*if (bounds !== null) {
+        if (newTop < bounds.minTop) {
+          newTop = bounds.minTop;
+        } else if (newTop > bounds.maxTop) {
+          newTop = bounds.maxTop;
+        }
+      }*/
       if (bounds.minTop !== null && newTop < bounds.minTop) {
         newTop = bounds.minTop;
       } else if (bounds.maxTop !== null && bounds.maxTop < newTop) {
         newTop = bounds.maxTop;
       }
 
-      if (lockAspectRatio && me.resizingOnY) {
-        me.rawLeft = left - (top - newTop) * aspectFactor;
+      if (me.lockAspectRatio && me.resizingOnY) {
+        me.rawLeft = me.left - (me.top - newTop) * me.aspectFactor;
       }
 
       me.top = newTop;
@@ -726,19 +747,23 @@ export default {
     rawBottom(newBottom) {
       const me = this;
       const bounds = me.bounds;
-      const aspectFactor = me.aspectFactor;
-      const lockAspectRatio = me.lockAspectRatio;
-      const right = me.right;
       const bottom = me.bottom;
 
+      /*if (bounds !== null) {
+        if (newBottom < bounds.minBottom) {
+          newBottom = bounds.minBottom;
+        } else if (newBottom > bounds.maxBottom) {
+          newBottom = bounds.maxBottom;
+        }
+      }*/
       if (bounds.minBottom !== null && newBottom < bounds.minBottom) {
         newBottom = bounds.minBottom
       } else if (bounds.maxBottom !== null && bounds.maxBottom < newBottom) {
         newBottom = bounds.maxBottom
       }
 
-      if (lockAspectRatio && me.resizingOnY) {
-        me.rawRight = right - (bottom - newBottom) * aspectFactor
+      if (me.lockAspectRatio && me.resizingOnY) {
+        me.rawRight = me.right - (me.bottom - newBottom) * me.aspectFactor
       }
 
       me.bottom = newBottom;
