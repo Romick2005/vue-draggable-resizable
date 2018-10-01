@@ -579,15 +579,13 @@ export default {
 </script>
 
 <style lang="scss">
-@import "../../scss/variables";
-
 .draggable-widgets {
   display: flex;
   flex-grow: 1;
   flex-shrink: 0;
   flex-direction: column;
   padding: 10px 20px 20px 20px;
-  background-color: $whiteSmokeColor;
+  background-color: #F6F6F6;
 
   .widgets-layout {
     display: flex;
