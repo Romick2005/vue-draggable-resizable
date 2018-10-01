@@ -49,7 +49,7 @@
 <script>
 
 //import VueDraggableResizable from "vue-draggable-resizable";
-import VueDraggableResizable from "vue-draggable-resizable.vue";
+import VueDraggableResizable from "./vue-draggable-resizable.vue";
 
 export default {
   components: {
