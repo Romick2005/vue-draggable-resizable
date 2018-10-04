@@ -5,7 +5,6 @@
     </div>
     <div
       v-else
-      ref="widgetsLayout"
       class="widgets-layout">
       <div
         v-if="activeWidgetIndex"
@@ -137,12 +136,12 @@ export default {
 
     maxWidth() {
       const me = this;
-      return me.$refs.widgetsLayout.scrollWidth;//me.$el.scrollWidth - 40;// extra space for scroll
+      return me.$el.scrollWidth;//me.$el.scrollWidth - 40;// extra space for scroll
     },
 
     maxHeight() {
       const me = this;
-      return me.$refs.widgetsLayout.scrollHeight;
+      return me.$el.scrollHeight;
     },
 
     isNotMaximizedMode() {

@@ -293,10 +293,10 @@ export default {
     },
 
     handleDown(handle, e) {
+      const me = this;
       if (e.stopPropagation) {
         e.stopPropagation();
       }
-      const me = this;
 
       // Here we avoid a dangerous recursion by faking
       // corner handles as middle handles
